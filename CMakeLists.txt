@@ -32,7 +32,7 @@ endif()
 
 target_include_directories(vgce PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-target_link_libraries(vgce PRIVATE ftxui::component)
+target_link_libraries(vgce PRIVATE ftxui::screen ftxui::dom ftxui::component)
 
 if(MSVC)
     target_compile_options(vgce PRIVATE /W4 /WX)

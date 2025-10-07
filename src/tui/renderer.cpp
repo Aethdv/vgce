@@ -1,6 +1,7 @@
 #include "tui/renderer.hpp"
 #include "core/application.hpp"
 #include "ftxui/component/captured_mouse.hpp"
+#include "ftxui/component/component.hpp"
 #include "ftxui/component/component_base.hpp"
 #include "ftxui/component/event.hpp"
 #include "ftxui/component/screen_interactive.hpp"
@@ -314,7 +315,6 @@ Element Renderer::render_tree_view() {
     if (!root) {
         return text("Initializing search...") | center | color(Color::GrayLight);
     }
-
     const auto& children = root->children;
     if (children.empty()) {
         if (m_app.is_paused()) {
@@ -322,16 +322,44 @@ Element Renderer::render_tree_view() {
         }
         return text("Waiting for engine output...") | center | color(Color::GrayLight);
     }
-    
+
     auto it = children.begin();
     while (it != children.end()) {
         bool is_last = (std::next(it) == children.end());
         render_tree_node(it->second.get(), elements, "", is_last, 1, 1, true);
         ++it;
     }
+
+    const int box_height = 50;
+    int total_lines = elements.size();
     
-    return vbox(elements);
+    m_scroll_position = std::max(0, std::min(m_scroll_position, total_lines - box_height));
+
+    Elements visible_elements;
+    int start = m_scroll_position;
+    int end = std::min(total_lines, start + box_height);
+    for (int i = start; i < end; ++i) {
+        visible_elements.push_back(elements[i]);
+    }
+
+    Element tree_content = vbox(visible_elements);
+
+    float scroll_percentage = 0.f;
+    if (total_lines > box_height) {
+        scroll_percentage = static_cast<float>(m_scroll_position) / (total_lines - box_height);
+    }
+    
+    Element scrollbar = vbox({
+        gauge(scroll_percentage)
+    }) | size(WIDTH, EQUAL, 1);
+
+    return hbox({
+        tree_content | flex,
+        separator(),
+        scrollbar,
+    });
 }
+
 
 Element Renderer::render_footer() {
     Elements help_elements;
@@ -353,38 +381,76 @@ Element Renderer::render_footer() {
 Component Renderer::build_ui() {
     auto header = ftxui::Renderer([this] { return render_header(); });
     auto footer = ftxui::Renderer([this] { return render_footer(); });
-    
-    auto tree_container = Container::Vertical({});
-    
-    auto tree_with_scroll = ftxui::Renderer(tree_container, [this] {
-        return render_tree_view() | vscroll_indicator | yframe | flex;
+
+    auto tree_view_component = ftxui::Renderer([this] {
+        return render_tree_view() | flex;
     });
-    
-    Components children;
+
+    // Explicitly create the vector of components to fix the initialization error.
+    ftxui::Components children;
     children.push_back(header);
-    children.push_back(tree_with_scroll);
+    children.push_back(tree_view_component);
     children.push_back(footer);
     
     auto main_container = Container::Vertical(children);
     
-    auto component = CatchEvent(main_container, [this](Event event) {
+    auto final_component = CatchEvent(main_container, [this](Event event) {
+        if (event.is_mouse()) {
+            if (event.mouse().button == Mouse::WheelUp) {
+                m_scroll_position--;
+                return true;
+            }
+            if (event.mouse().button == Mouse::WheelDown) {
+                m_scroll_position++;
+                return true;
+            }
+        }
+        if (event == Event::ArrowUp) {
+            m_scroll_position--;
+            return true;
+        }
+        if (event == Event::ArrowDown) {
+            m_scroll_position++;
+            return true;
+        }
+        if (event == Event::PageUp) {
+            m_scroll_position -= 50;
+            return true;
+        }
+        if (event == Event::PageDown) {
+            m_scroll_position += 50;
+            return true;
+        }
+        if (event == Event::Home) {
+            m_scroll_position = 0;
+            return true;
+        }
+        if (event == Event::End) {
+            m_scroll_position = 1'000'000;
+            return true;
+        }
+
         if (event == Event::Character('q')) {
             m_screen.ExitLoopClosure()();
             return true;
-        } else if (event == Event::Character(' ')) {
+        }
+        if (event == Event::Character(' ')) {
             m_app.toggle_pause();
             return true;
-        } else if (event == Event::Character('c')) {
+        }
+        if (event == Event::Character('c')) {
             m_app.clear_tree();
             return true;
-        } else if (event == Event::Character('e')) {
+        }
+        if (event == Event::Character('e')) {
             m_app.export_tree();
             return true;
         }
+        
         return false;
     });
     
-    return component;
+    return final_component;
 }
 
 } // namespace vgce::tui

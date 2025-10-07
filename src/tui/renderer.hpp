@@ -46,6 +46,8 @@ private:
     const vgce::core::AppConfig& m_config;
     std::chrono::steady_clock::time_point& m_search_start_time;
     vgce::core::Application& m_app;
+
+    int m_scroll_position = 0;
 };
 
 } // namespace vgce::tui

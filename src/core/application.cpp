@@ -89,7 +89,7 @@ void Application::print_usage(const char* program_name) {
 
 void Application::print_help() {
     std::cout << R"(
-VGCE - Visual Game-tree Chess Engine Explorer v0.1.0
+VGCE - Visual Game-tree Chess Engine Explorer v0.1.1
 
 USAGE:
     vgce <engine_executable> [OPTIONS]
